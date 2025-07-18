@@ -1,0 +1,5 @@
+use_field_init_shorthand = true
+empty_item_single_line = false
+use_small_heuristics = "Max"
+max_width = 90
+single_line_if_else_max_width = 50
