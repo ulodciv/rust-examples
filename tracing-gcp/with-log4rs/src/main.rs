@@ -6,12 +6,12 @@ use serde::Serialize;
 use tokio::task_local;
 
 task_local! {
-    pub static TASK_LOCAL_TRACE_ID: Option<String>;
+    static TASK_LOCAL_TRACE_ID: Option<String>;
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(Debug)]
 struct GcpJsonEncoder {
-    pub gcp_project_id: String,
+    gcp_project_id: String,
 }
 
 impl log4rs::encode::Encode for GcpJsonEncoder {
@@ -60,14 +60,20 @@ async fn init_logging() {
 
 async fn do_something() {
     info!("Doing something");
-    println!("...");
+    // ...
     info!("Done doing something");
 }
 
 #[tokio::main]
 async fn main() {
     init_logging().await;
-    info!("App started");
-    TASK_LOCAL_TRACE_ID.scope(Some("TRACE_ID_456".into()), do_something()).await;
-    info!("Exiting app");
+
+    println!("With trace_id=456");
+    TASK_LOCAL_TRACE_ID.scope(Some("456".into()), do_something()).await;
+
+    println!("With no trace_id:");
+    do_something().await;
+
+    println!("With trace_id=789");
+    TASK_LOCAL_TRACE_ID.scope(Some("789".into()), do_something()).await;
 }

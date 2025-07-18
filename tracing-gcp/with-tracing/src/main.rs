@@ -39,7 +39,7 @@ impl Visit for EventVisitor {
 }
 
 struct GcpLayer {
-    pub gcp_project_id: String,
+    gcp_project_id: String,
 }
 
 impl<S> Layer<S> for GcpLayer
@@ -47,14 +47,13 @@ where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        let Some(span) = ctx.span(id) else {
-            return;
+        if let Some(span) = ctx.span(id) {
+            let mut visitor = TraceIdVisitor::default();
+            attrs.record(&mut visitor);
+            if let Some(trace_id) = visitor.trace_id {
+                span.extensions_mut().insert(TraceId(trace_id));
+            }
         };
-        let mut visitor = TraceIdVisitor::default();
-        attrs.record(&mut visitor);
-        if let Some(trace_id) = visitor.trace_id {
-            span.extensions_mut().insert(TraceId(trace_id));
-        }
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
@@ -79,7 +78,6 @@ where
                 let Some(trace_id) = extensions.get::<TraceId>() else { continue };
                 let t = &trace_id.0;
                 trace = Some(format!("projects/{}/traces/{t}", self.gcp_project_id));
-                break;
             }
         }
         eprintln!("{}", to_string(&LogEntry { severity, message, time, trace }).unwrap());
@@ -97,16 +95,24 @@ async fn init_logging() {
 
 async fn do_something() {
     info!("Doing something");
-    println!("...");
+    // ...
     info!("Done doing something");
 }
 
 #[tokio::main]
 async fn main() {
     init_logging().await;
-    info!("App started");
-    let trace_id = "TRACE_ID_456".to_string();
+
+    println!("With trace_id=456");
+    let trace_id = "456".to_string();
     let span = info_span!("trace_id", %trace_id);
     do_something().instrument(span).await;
-    info!("Exiting app");
+
+    println!("With no trace_id:");
+    do_something().await;
+
+    println!("With trace_id=789");
+    let trace_id = "789".to_string();
+    let span = info_span!("trace_id", %trace_id);
+    do_something().instrument(span).await;
 }
