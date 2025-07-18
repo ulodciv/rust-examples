@@ -71,7 +71,7 @@ async fn main() {
     println!("With trace_id=456");
     TASK_LOCAL_TRACE_ID.scope(Some("456".into()), do_something()).await;
 
-    println!("With no trace_id:");
+    println!("Without a trace_id:");
     do_something().await;
 
     println!("With trace_id=789");

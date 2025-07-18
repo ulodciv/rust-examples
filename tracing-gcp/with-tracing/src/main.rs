@@ -57,6 +57,15 @@ where
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        let mut trace = None;
+        if let Some(scope) = ctx.event_scope(event) {
+            for span in scope.from_root() {
+                let extensions = span.extensions();
+                let Some(trace_id) = extensions.get::<TraceId>() else { continue };
+                let t = &trace_id.0;
+                trace = Some(format!("projects/{}/traces/{t}", self.gcp_project_id));
+            }
+        }
         #[derive(Serialize)]
         struct LogEntry {
             severity: String,
@@ -71,15 +80,6 @@ where
         let message = visitor.message.unwrap_or_default();
         let severity = event.metadata().level().as_str().to_lowercase();
         let time = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-        let mut trace = None;
-        if let Some(scope) = ctx.event_scope(event) {
-            for span in scope.from_root() {
-                let extensions = span.extensions();
-                let Some(trace_id) = extensions.get::<TraceId>() else { continue };
-                let t = &trace_id.0;
-                trace = Some(format!("projects/{}/traces/{t}", self.gcp_project_id));
-            }
-        }
         eprintln!("{}", to_string(&LogEntry { severity, message, time, trace }).unwrap());
     }
 }
@@ -104,15 +104,11 @@ async fn main() {
     init_logging().await;
 
     println!("With trace_id=456");
-    let trace_id = "456".to_string();
-    let span = info_span!("trace_id", %trace_id);
-    do_something().instrument(span).await;
+    do_something().instrument(info_span!("trace_id", trace_id = %"456")).await;
 
-    println!("With no trace_id:");
+    println!("Without a trace_id:");
     do_something().await;
 
     println!("With trace_id=789");
-    let trace_id = "789".to_string();
-    let span = info_span!("trace_id", %trace_id);
-    do_something().instrument(span).await;
+    do_something().instrument(info_span!("trace_id", trace_id = %"789")).await;
 }
