@@ -42,6 +42,16 @@ struct GcpLayer {
     gcp_project_id: String,
 }
 
+#[derive(Serialize)]
+struct LogEntry<'a> {
+    severity: &'a    str,
+    message: String,
+    time: String,
+    #[serde(rename = "logging.googleapis.com/trace")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trace: Option<String>,
+}
+
 impl<S> Layer<S> for GcpLayer
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
@@ -66,21 +76,15 @@ where
                 trace = Some(format!("projects/{}/traces/{t}", self.gcp_project_id));
             }
         }
-        #[derive(Serialize)]
-        struct LogEntry {
-            severity: String,
-            message: String,
-            time: String,
-            #[serde(rename = "logging.googleapis.com/trace")]
-            #[serde(skip_serializing_if = "Option::is_none")]
-            trace: Option<String>,
-        }
         let mut visitor = EventVisitor::default();
         event.record(&mut visitor);
-        let message = visitor.message.unwrap_or_default();
-        let severity = event.metadata().level().as_str().to_lowercase();
-        let time = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
-        eprintln!("{}", to_string(&LogEntry { severity, message, time, trace }).unwrap());
+        let entry = LogEntry {
+            severity: event.metadata().level().as_str(),
+            message: visitor.message.unwrap_or_default(),
+            time: Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
+            trace,
+        };
+        eprintln!("{}", to_string(&entry).unwrap());
     }
 }
 
